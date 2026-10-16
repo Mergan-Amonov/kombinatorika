@@ -1,0 +1,535 @@
+<!doctype html>
+<title>Panjara yo'llari</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: whiteboard-like work surface — grid canvas on the left, the teacher's working (formula, Pascal) on the right; stacks on phones. */
+:root {
+  --bg: #f3f5f9;          /* board surface, faint blue bias */
+  --panel: #ffffff;
+  --ink: #1d2b55;         /* text */
+  --muted: #5e6a8a;
+  --line: #d7dcea;        /* grid lines */
+  --axis: #34427a;
+  --blue: #2346c8;        /* marker blue */
+  --red: #d2342b;         /* teacher's red marker: the path */
+  --amber: #c07a00;       /* via point */
+  --green: #18855a;       /* start point */
+  --zone: rgba(35, 70, 200, 0.06);
+  --heat: 35, 70, 200;
+  --block: #3b3f4c;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1320; --panel: #171c2c; --ink: #e4e8f6; --muted: #98a2c2; --line: #2a3150; --axis: #8f9cd0;
+    --blue: #8aa4ff; --red: #ff6f62; --amber: #f2b33d; --green: #4fd39a; --zone: rgba(138, 164, 255, 0.07);
+    --heat: 138, 164, 255; --block: #c7cbd8; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1320; --panel: #171c2c; --ink: #e4e8f6; --muted: #98a2c2; --line: #2a3150; --axis: #8f9cd0;
+  --blue: #8aa4ff; --red: #ff6f62; --amber: #f2b33d; --green: #4fd39a; --zone: rgba(138, 164, 255, 0.07);
+  --heat: 138, 164, 255; --block: #c7cbd8; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 18px; }
+header h1 { font: 700 clamp(26px, 4vw, 38px)/1.1 var(--f-display); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 6px 0 0; color: var(--muted); max-width: 70ch; }
+.main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.board { display: grid; gap: 12px; }
+#canvasBox { position: relative; width: 100%; aspect-ratio: 1 / 1; max-width: 100%; }
+canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: manipulation; border-radius: 6px; }
+.label { font: 600 11px/1 var(--f-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.controls { display: grid; gap: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.pt { display: flex; align-items: center; gap: 6px; font-family: var(--f-mono); }
+.pt b { font-family: var(--f-display); font-size: 18px; width: 18px; }
+.pt.a b { color: var(--green); } .pt.b b { color: var(--red); }
+input[type=number] {
+  width: 58px; padding: 6px 6px; font: 15px var(--f-mono); color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+}
+input[type=range] { accent-color: var(--blue); width: 160px; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--ink); padding: 7px 11px; font: 500 13px var(--f-body); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--blue); color: var(--panel); }
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 8px 12px; border-radius: 8px; font: 600 13px var(--f-body); cursor: pointer; }
+.btn.primary { background: var(--red); border-color: var(--red); color: #fff; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); cursor: pointer; }
+.check input { accent-color: var(--blue); }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+.side { display: grid; gap: 18px; }
+.total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.total .num { font: 700 clamp(40px, 6vw, 56px)/1 var(--f-display); color: var(--red); font-variant-numeric: tabular-nums; }
+.total .unit { color: var(--muted); }
+.steps { display: grid; gap: 8px; margin-top: 10px; font-size: 14px; }
+.steps div { min-width: 0; overflow-wrap: anywhere; }
+.math { font-family: var(--f-mono); font-size: 14px; }
+.binom { display: inline-flex; align-items: center; font-family: var(--f-display); font-size: 1.35em; }
+.binom .ix { display: inline-flex; flex-direction: column; font: 600 11px/1.15 var(--f-mono); margin-left: 1px; }
+.note { font-size: 13px; padding: 8px 10px; border-radius: 6px; background: var(--zone); color: var(--ink); }
+.note.warn { color: var(--amber); }
+.pathbox { display: grid; gap: 10px; }
+.word { font: 600 18px/1.6 var(--f-mono); letter-spacing: 0.12em; overflow-wrap: anywhere; color: var(--red); min-height: 1.6em; }
+.counter { font-family: var(--f-mono); font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.pascal { overflow-x: auto; }
+.ptri { display: grid; gap: 3px; width: max-content; min-width: 100%; font: 13px var(--f-mono); font-variant-numeric: tabular-nums; }
+.prow { display: flex; justify-content: center; gap: 2px; }
+.prow span { min-width: 34px; text-align: center; padding: 2px 3px; color: var(--muted); }
+.prow span.rowsel { color: var(--ink); }
+.prow span.hit { color: var(--panel); background: var(--red); border-radius: 4px; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Panjara yo'llari</h1>
+    <p>A nuqtadan B nuqtaga faqat o'ngga (→) va yuqoriga (↑) yurib nechta usulda borish mumkin? Panjarani bosing yoki koordinatalarni kiriting. Har bir tugundagi son — A dan shu tugungacha bo'lgan yo'llar soni.</p>
+  </header>
+
+  <div class="main">
+    <section class="card board" aria-label="Koordinata panjarasi">
+      <div class="controls">
+        <div class="row">
+          <div class="pt a"><b>A</b>(<input id="ax" type="number" min="0" value="0" aria-label="A x">,<input id="ay" type="number" min="0" value="0" aria-label="A y">)</div>
+          <div class="pt b"><b>B</b>(<input id="bx" type="number" min="0" value="4" aria-label="B x">,<input id="by" type="number" min="0" value="4" aria-label="B y">)</div>
+          <label class="check" for="size">Panjara <input id="size" type="range" min="3" max="16" value="6"> <span id="sizeVal" class="math">6</span></label>
+        </div>
+        <div class="row">
+          <span class="label">Bosish rejimi</span>
+          <div class="seg" role="group" aria-label="Bosish rejimi">
+            <button data-mode="A" aria-pressed="true">A nuqta</button>
+            <button data-mode="B" aria-pressed="false">B nuqta</button>
+            <button data-mode="P" aria-pressed="false">Orqali o'tadigan nuqta</button>
+            <button data-mode="X" aria-pressed="false">To'siq</button>
+          </div>
+        </div>
+      </div>
+      <div id="canvasBox"><canvas id="cv" aria-label="Panjara va yo'llar"></canvas></div>
+      <div class="row" style="justify-content: space-between">
+        <div class="legend">
+          <span><i class="dot" style="background: var(--green)"></i>A — boshlanish</span>
+          <span><i class="dot" style="background: var(--red)"></i>B — manzil / yo'l</span>
+          <span><i class="dot" style="background: var(--amber)"></i>Orqali o'tadigan nuqta</span>
+          <span><i class="dot" style="background: var(--block)"></i>To'siq</span>
+        </div>
+        <div class="row">
+          <label class="check" for="showNums"><input id="showNums" type="checkbox" checked> Sonlar</label>
+          <label class="check" for="showHeat"><input id="showHeat" type="checkbox"> Issiqlik xaritasi</label>
+          <button class="btn" id="clearBtn">Tozalash</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="card">
+        <div class="label">Yo'llar soni</div>
+        <div class="total"><span class="num" id="total">70</span><span class="unit" id="totalUnit">xil usul</span></div>
+        <div class="steps" id="steps"></div>
+      </section>
+
+      <section class="card pathbox">
+        <div class="label">Yo'llarni ko'rish</div>
+        <div class="word" id="word"></div>
+        <div class="row">
+          <button class="btn primary" id="randBtn">Tasodifiy yo'l</button>
+          <button class="btn" id="prevBtn" aria-label="Oldingi yo'l">◀</button>
+          <button class="btn" id="nextBtn" aria-label="Keyingi yo'l">▶</button>
+          <button class="btn" id="playBtn">Hammasini ko'rsatish</button>
+        </div>
+        <div class="counter" id="counter"></div>
+        <p class="hint">Yo'llar alifbo tartibida raqamlangan (→ oldin ↑). Har bir yo'l — qadamlar ketma-ketligi.</p>
+      </section>
+
+      <section class="card">
+        <div class="label">Paskal uchburchagi bilan bog'liqlik</div>
+        <div class="pascal" id="pascal"></div>
+        <p class="hint" id="pascalNote"></p>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const cv = $("cv"), ctx = cv.getContext("2d"), box = $("canvasBox");
+  const state = {
+    N: 6, A: { x: 0, y: 0 }, B: { x: 4, y: 4 }, P: null, blocks: new Set(),
+    mode: "A", k: 0, anim: 1, playing: null,
+  };
+  let C = null; // computed data
+
+  const key = (x, y) => x + "," + y;
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const fmt = (n) => n.toLocaleString("en-US").replace(/,/g, " ");
+
+  function binom(n, k) {
+    if (k < 0 || k > n) return 0;
+    k = Math.min(k, n - k);
+    let r = 1;
+    for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i;
+    return Math.round(r);
+  }
+  function fact(n) { let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; }
+
+  // ---------- core computation ----------
+  function compute() {
+    const { A, B, P } = state;
+    const sx = B.x >= A.x ? 1 : -1, sy = B.y >= A.y ? 1 : -1;
+    const n = Math.abs(B.x - A.x), m = Math.abs(B.y - A.y);
+    const G = (i, j) => ({ x: A.x + sx * i, y: A.y + sy * j });
+    let pi = null, pj = null, pOutside = false;
+    if (P) {
+      pi = (P.x - A.x) * sx; pj = (P.y - A.y) * sy;
+      if (pi < 0 || pj < 0 || pi > n || pj > m) pOutside = true;
+    }
+    const allowed = (i, j) => {
+      const g = G(i, j);
+      if (state.blocks.has(key(g.x, g.y))) return false;
+      if (P && !pOutside) return (i <= pi && j <= pj) || (i >= pi && j >= pj);
+      if (pOutside) return false;
+      return true;
+    };
+    const f = [], g = [];
+    for (let i = 0; i <= n; i++) { f.push(new Array(m + 1).fill(0)); g.push(new Array(m + 1).fill(0)); }
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= m; j++) {
+      if (!allowed(i, j)) continue;
+      if (i === 0 && j === 0) { f[i][j] = 1; continue; }
+      f[i][j] = (i > 0 ? f[i - 1][j] : 0) + (j > 0 ? f[i][j - 1] : 0);
+    }
+    for (let i = n; i >= 0; i--) for (let j = m; j >= 0; j--) {
+      if (!allowed(i, j)) continue;
+      if (i === n && j === m) { g[i][j] = 1; continue; }
+      g[i][j] = (i < n ? g[i + 1][j] : 0) + (j < m ? g[i][j + 1] : 0);
+    }
+    C = { sx, sy, n, m, f, g, G, allowed, pi, pj, pOutside, total: f[n][m] };
+  }
+
+  function unrank(k) {
+    const { n, m, g } = C;
+    let i = 0, j = 0; const pts = [[0, 0]], moves = [];
+    while (i < n || j < m) {
+      const r = i < n ? g[i + 1][j] : 0;
+      if (i < n && k < r) { i++; moves.push("x"); }
+      else { k -= r; j++; moves.push("y"); }
+      pts.push([i, j]);
+    }
+    return { pts, moves };
+  }
+
+  // ---------- drawing ----------
+  let geo = null;
+  function resize() {
+    const w = box.clientWidth, dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(w * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const pad = Math.max(28, w * 0.07);
+    const cell = (w - pad * 1.6) / state.N;
+    geo = { w, pad, cell, ox: pad, oy: w - pad };
+    draw();
+  }
+  const px = (x, y) => [geo.ox + x * geo.cell, geo.oy - y * geo.cell];
+
+  function draw() {
+    if (!geo) return;
+    const { w, cell } = geo, N = state.N;
+    const col = {
+      line: css("--line"), axis: css("--axis"), ink: css("--ink"), muted: css("--muted"), blue: css("--blue"),
+      red: css("--red"), amber: css("--amber"), green: css("--green"), zone: css("--zone"), heat: css("--heat"),
+      block: css("--block"), panel: css("--panel"),
+    };
+    ctx.clearRect(0, 0, w, w);
+    ctx.fillStyle = col.panel; ctx.fillRect(0, 0, w, w);
+
+    // zone rectangle between A and B
+    const { A, B } = state;
+    const [zx1, zy1] = px(Math.min(A.x, B.x), Math.max(A.y, B.y));
+    const [zx2, zy2] = px(Math.max(A.x, B.x), Math.min(A.y, B.y));
+    ctx.fillStyle = col.zone; ctx.fillRect(zx1, zy1, zx2 - zx1, zy2 - zy1);
+
+    // grid
+    ctx.lineWidth = 1; ctx.strokeStyle = col.line;
+    for (let i = 0; i <= N; i++) {
+      let [x1, y1] = px(i, 0), [x2, y2] = px(i, N);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      [x1, y1] = px(0, i); [x2, y2] = px(N, i);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+    // axes
+    ctx.strokeStyle = col.axis; ctx.fillStyle = col.axis; ctx.lineWidth = 1.6;
+    const [o0, o1] = px(0, 0), [xe] = px(N + 0.45, 0), [, ye] = px(0, N + 0.45);
+    ctx.beginPath(); ctx.moveTo(o0, o1); ctx.lineTo(xe, o1); ctx.moveTo(o0, o1); ctx.lineTo(o0, ye); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(xe + 7, o1); ctx.lineTo(xe - 2, o1 - 4); ctx.lineTo(xe - 2, o1 + 4); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(o0, ye - 7); ctx.lineTo(o0 - 4, ye + 2); ctx.lineTo(o0 + 4, ye + 2); ctx.fill();
+    const lf = Math.max(10, Math.min(13, cell * 0.32));
+    ctx.font = `500 ${lf}px "JetBrains Mono", monospace`; ctx.fillStyle = col.muted;
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (let i = 0; i <= N; i++) { const [x, y] = px(i, 0); ctx.fillText(i, x, y + 6); }
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (let i = 1; i <= N; i++) { const [x, y] = px(0, i); ctx.fillText(i, x - 7, y); }
+    ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText("x", xe + 2, o1 - 6); ctx.fillText("y", o0 + 8, ye - 2);
+
+    const { n, m, f, g, G, allowed, total } = C;
+
+    // heat map: share of paths passing through each node
+    if ($("showHeat").checked && total > 0) {
+      for (let i = 0; i <= n; i++) for (let j = 0; j <= m; j++) {
+        const through = f[i][j] * g[i][j];
+        if (!through) continue;
+        const { x, y } = G(i, j); const [cx, cy] = px(x, y);
+        ctx.fillStyle = `rgba(${col.heat}, ${0.12 + 0.6 * (through / total)})`;
+        ctx.beginPath(); ctx.arc(cx, cy, cell * 0.42, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // disallowed (by via-point) nodes inside the zone
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= m; j++) {
+      const { x, y } = G(i, j);
+      if (!allowed(i, j) && !state.blocks.has(key(x, y))) {
+        const [cx, cy] = px(x, y);
+        ctx.fillStyle = col.line; ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // path
+    if (total > 0 && state.k < total) {
+      const { pts } = unrank(state.k);
+      const segs = (pts.length - 1) * state.anim;
+      ctx.strokeStyle = col.red; ctx.lineWidth = Math.max(3, cell * 0.11); ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.beginPath();
+      const p0 = G(0, 0); ctx.moveTo(...px(p0.x, p0.y));
+      for (let s = 1; s < pts.length; s++) {
+        const a = G(...pts[s - 1]), b = G(...pts[s]);
+        const t = Math.min(1, Math.max(0, segs - (s - 1)));
+        if (t <= 0) break;
+        const [ax, ay] = px(a.x, a.y), [bx, by] = px(b.x, b.y);
+        ctx.lineTo(ax + (bx - ax) * t, ay + (by - ay) * t);
+      }
+      ctx.stroke();
+    }
+
+    // node counts
+    if ($("showNums").checked && cell >= 22) {
+      const fs = Math.max(9, Math.min(14, cell * 0.26));
+      ctx.font = `600 ${fs}px "JetBrains Mono", monospace`;
+      ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+      for (let i = 0; i <= n; i++) for (let j = 0; j <= m; j++) {
+        const v = f[i][j]; if (!allowed(i, j)) continue;
+        const { x, y } = G(i, j); const [cx, cy] = px(x, y);
+        const s = fmt(v), off = Math.max(8, cell * 0.2);
+        if (ctx.measureText(s).width > cell * 0.95) continue;
+        ctx.fillStyle = col.panel; ctx.globalAlpha = 0.8;
+        const tw = ctx.measureText(s).width;
+        ctx.fillRect(cx + off - 2, cy - fs - 4, tw + 4, fs + 2);
+        ctx.globalAlpha = 1; ctx.fillStyle = col.blue;
+        ctx.fillText(s, cx + off, cy - 3);
+      }
+    }
+
+    // obstacles
+    ctx.strokeStyle = col.block; ctx.lineWidth = 2.5; ctx.lineCap = "round";
+    const r = Math.max(5, cell * 0.17);
+    state.blocks.forEach((kk) => {
+      const [x, y] = kk.split(",").map(Number); if (x > N || y > N) return;
+      const [cx, cy] = px(x, y);
+      ctx.beginPath(); ctx.moveTo(cx - r, cy - r); ctx.lineTo(cx + r, cy + r); ctx.moveTo(cx + r, cy - r); ctx.lineTo(cx - r, cy + r); ctx.stroke();
+    });
+
+    // via point
+    if (state.P) {
+      const [cx, cy] = px(state.P.x, state.P.y); const d = Math.max(7, cell * 0.2);
+      ctx.fillStyle = col.amber; ctx.beginPath();
+      ctx.moveTo(cx, cy - d); ctx.lineTo(cx + d, cy); ctx.lineTo(cx, cy + d); ctx.lineTo(cx - d, cy); ctx.closePath(); ctx.fill();
+    }
+
+    // A and B
+    const mark = (p, c, name) => {
+      const [cx, cy] = px(p.x, p.y);
+      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(cx, cy, Math.max(6, cell * 0.16), 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = col.panel; ctx.lineWidth = 2; ctx.stroke();
+      ctx.font = `700 ${Math.max(12, Math.min(16, cell * 0.36))}px "Bricolage Grotesque", sans-serif`;
+      ctx.fillStyle = c; ctx.textAlign = "right"; ctx.textBaseline = "top";
+      ctx.fillText(name, cx - 6, cy + 5);
+    };
+    mark(state.A, col.green, "A"); mark(state.B, col.red, "B");
+  }
+
+  // ---------- side panels ----------
+  const bin = (top, bottom) => `<span class="binom">C<span class="ix"><span>${top}</span><span>${bottom}</span></span></span>`;
+
+  function renderInfo() {
+    const { n, m, total, sx, sy } = C, { A, B, P } = state;
+    $("total").textContent = fmt(total);
+    const hx = sx > 0 ? "o'ngga (→)" : "chapga (←)", hy = sy > 0 ? "yuqoriga (↑)" : "pastga (↓)";
+    const lines = [];
+    lines.push(`<div class="math">A(${A.x}, ${A.y}) → B(${B.x}, ${B.y})</div>`);
+    lines.push(`<div>${hx}: <b class="math">n = |${B.x} − ${A.x}| = ${n}</b> qadam, ${hy}: <b class="math">m = |${B.y} − ${A.y}| = ${m}</b> qadam. Jami <b class="math">n + m = ${n + m}</b> qadam.</div>`);
+    const plain = binom(n + m, n);
+    const hasBlocks = [...state.blocks].some((kk) => { const [x, y] = kk.split(",").map(Number); return inZone(x, y); });
+    lines.push(`<div>Har bir yo'l — ${n + m} ta qadamdan ${n} tasini "${sx > 0 ? "→" : "←"}" uchun tanlash:</div>`);
+    let f = `<div class="math">${bin(n, n + m)} = <span>(n+m)! / (n!·m!)</span> = ${n + m}! / (${n}!·${m}!)`;
+    if (n + m <= 18) f += ` = ${fmt(fact(n + m))} / (${fmt(fact(n))}·${fmt(fact(m))})`;
+    f += ` = <b>${fmt(plain)}</b></div>`;
+    lines.push(f);
+    if (P) {
+      if (C.pOutside) {
+        lines.push(`<div class="note warn">P(${P.x}, ${P.y}) nuqta A va B orasidagi to'rtburchakdan tashqarida — u orqali o'tadigan yo'l yo'q.</div>`);
+      } else {
+        const a = binom(C.pi + C.pj, C.pi), b = binom(n - C.pi + m - C.pj, n - C.pi);
+        lines.push(`<div class="note">P(${P.x}, ${P.y}) orqali o'tuvchi yo'llar: (A → P) · (P → B) = ${bin(C.pi, C.pi + C.pj)} · ${bin(n - C.pi, n - C.pi + m - C.pj)} = ${fmt(a)} · ${fmt(b)} = <b>${fmt(a * b)}</b>${hasBlocks ? " (to'siqlarsiz)" : ""}</div>`);
+      }
+    }
+    if (hasBlocks) {
+      lines.push(`<div class="note warn">To'siqlar bor, shuning uchun formula ishlamaydi. Natija har bir tugunda «oldingi ikki qo'shni yig'indisi» qoidasi bilan hisoblandi: <b>${fmt(total)}</b>.</div>`);
+    }
+    if (!hasBlocks && !P) {
+      lines.push(`<div class="hint">Har bir tugundagi son = chapdagi + pastdagi tugun soni. Shuning uchun panjaradagi diagonallar Paskal uchburchagi qatorlarini beradi.</div>`);
+    }
+    $("steps").innerHTML = lines.join("");
+    renderPascal(n, m);
+  }
+
+  function inZone(x, y) {
+    const { A, B } = state;
+    return x >= Math.min(A.x, B.x) && x <= Math.max(A.x, B.x) && y >= Math.min(A.y, B.y) && y <= Math.max(A.y, B.y);
+  }
+
+  function renderPascal(n, m) {
+    const R = n + m, rows = [];
+    const show = R <= 10 ? [...Array(R + 1).keys()] : [0, 1, 2, 3, -1, R];
+    for (const r of show) {
+      if (r === -1) { rows.push(`<div class="prow"><span>⋮</span></div>`); continue; }
+      const cells = [];
+      for (let k = 0; k <= r; k++) {
+        const cls = r === R ? (k === n ? "hit" : "rowsel") : "";
+        cells.push(`<span class="${cls}">${fmt(binom(r, k))}</span>`);
+      }
+      rows.push(`<div class="prow">${cells.join("")}</div>`);
+    }
+    $("pascal").innerHTML = `<div class="ptri">${rows.join("")}</div>`;
+    $("pascalNote").innerHTML = `${R}-qatorning ${n}-o'rnidagi son ${bin(n, R)} = ${fmt(binom(R, n))} — to'siqsiz yo'llar soni. Qator yig'indisi 2<sup>${R}</sup> = ${fmt(2 ** R)} — ${R} qadamli barcha →/↑ ketma-ketliklar soni.`;
+  }
+
+  function renderPath() {
+    const { total, sx, sy } = C;
+    const has = total > 0;
+    ["randBtn", "prevBtn", "nextBtn", "playBtn"].forEach((id) => ($(id).disabled = !has));
+    if (!has) { $("word").textContent = "Yo'l yo'q"; $("counter").textContent = ""; return; }
+    if (state.k >= total) state.k = 0;
+    const { moves } = unrank(state.k);
+    const ax = sx > 0 ? "→" : "←", ay = sy > 0 ? "↑" : "↓";
+    $("word").textContent = moves.length ? moves.map((s) => (s === "x" ? ax : ay)).join(" ") : "(A = B, 1 ta bo'sh yo'l)";
+    $("counter").textContent = `Yo'l № ${fmt(state.k + 1)} / ${fmt(total)}`;
+  }
+
+  // ---------- animation ----------
+  let raf = 0;
+  function animate() {
+    cancelAnimationFrame(raf);
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { state.anim = 1; draw(); return; }
+    const steps = Math.max(1, C.n + C.m), dur = Math.min(1600, 110 * steps), t0 = performance.now();
+    const tick = (t) => {
+      state.anim = Math.min(1, (t - t0) / dur); draw();
+      if (state.anim < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+  }
+  function showK(k, anim = true) {
+    state.k = ((k % C.total) + C.total) % C.total;
+    renderPath(); if (anim) animate(); else { state.anim = 1; draw(); }
+  }
+  function stopPlay() {
+    if (state.playing) { clearInterval(state.playing); state.playing = null; $("playBtn").textContent = "Hammasini ko'rsatish"; }
+  }
+
+  // ---------- update cycle ----------
+  function clampInputs() {
+    const N = state.N, c = (v) => Math.max(0, Math.min(N, Number.isFinite(v) ? Math.round(v) : 0));
+    state.A = { x: c(state.A.x), y: c(state.A.y) }; state.B = { x: c(state.B.x), y: c(state.B.y) };
+    if (state.P && (state.P.x > N || state.P.y > N)) state.P = null;
+    $("ax").value = state.A.x; $("ay").value = state.A.y; $("bx").value = state.B.x; $("by").value = state.B.y;
+    ["ax", "ay", "bx", "by"].forEach((id) => ($(id).max = N));
+  }
+  function update(resetPath = true) {
+    stopPlay(); clampInputs(); compute();
+    if (resetPath) state.k = 0;
+    renderInfo(); renderPath(); state.anim = 1; draw();
+  }
+
+  // ---------- events ----------
+  ["ax", "ay", "bx", "by"].forEach((id) => $(id).addEventListener("input", () => {
+    state.A = { x: +$("ax").value, y: +$("ay").value }; state.B = { x: +$("bx").value, y: +$("by").value };
+    update();
+  }));
+  $("size").addEventListener("input", (e) => { state.N = +e.target.value; $("sizeVal").textContent = state.N; update(); resize(); });
+  document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => {
+    state.mode = b.dataset.mode;
+    document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  }));
+  ["showNums", "showHeat"].forEach((id) => $(id).addEventListener("change", draw));
+  $("clearBtn").addEventListener("click", () => { state.blocks.clear(); state.P = null; update(); });
+
+  cv.addEventListener("click", (e) => {
+    const r = cv.getBoundingClientRect();
+    const x = Math.round((e.clientX - r.left - geo.ox) / geo.cell);
+    const y = Math.round((geo.oy - (e.clientY - r.top)) / geo.cell);
+    if (x < 0 || y < 0 || x > state.N || y > state.N) return;
+    const isA = x === state.A.x && y === state.A.y, isB = x === state.B.x && y === state.B.y;
+    if (state.mode === "A") state.A = { x, y };
+    else if (state.mode === "B") state.B = { x, y };
+    else if (state.mode === "P") state.P = state.P && state.P.x === x && state.P.y === y ? null : { x, y };
+    else if (state.mode === "X") {
+      if (isA || isB) return;
+      const kk = key(x, y); state.blocks.has(kk) ? state.blocks.delete(kk) : state.blocks.add(kk);
+    }
+    update();
+    if (C.total > 0) animate();
+  });
+
+  $("randBtn").addEventListener("click", () => { stopPlay(); showK(Math.floor(Math.random() * C.total)); });
+  $("prevBtn").addEventListener("click", () => { stopPlay(); showK(state.k - 1); });
+  $("nextBtn").addEventListener("click", () => { stopPlay(); showK(state.k + 1); });
+  $("playBtn").addEventListener("click", () => {
+    if (state.playing) return stopPlay();
+    $("playBtn").textContent = "To'xtatish";
+    const delay = Math.min(1800, 140 * Math.max(1, C.n + C.m) + 400);
+    showK(state.k);
+    state.playing = setInterval(() => {
+      if (state.k + 1 >= C.total) { stopPlay(); return; }
+      showK(state.k + 1);
+    }, delay);
+  });
+
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", draw);
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  new ResizeObserver(resize).observe(box);
+  if (document.fonts) document.fonts.ready.then(draw);
+
+  update(); resize(); animate();
+})();
+</script>
