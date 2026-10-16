@@ -99,6 +99,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
 .prow span.hit { color: var(--panel); background: var(--red); border-radius: 4px; font-weight: 600; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
+.forbid { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); font: 13px var(--f-mono); }
+.chip.out { opacity: .55; }
+.chip button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 2px 4px; border-radius: 50%; }
+.chip button:hover { color: var(--red); }
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -106,7 +112,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
 <div class="wrap">
   <header>
     <h1>Panjara yo'llari</h1>
-    <p>A nuqtadan B nuqtaga faqat o'ngga (→) va yuqoriga (↑) yurib nechta usulda borish mumkin? Panjarani bosing yoki koordinatalarni kiriting. Har bir tugundagi son — A dan shu tugungacha bo'lgan yo'llar soni.</p>
+    <p>A nuqtadan B nuqtaga faqat o'ngga (→) va yuqoriga (↑) yurib nechta usulda borish mumkin? Panjarani bosing yoki koordinatalarni kiriting. Kirish mumkin bo'lmagan nuqtalarni belgilab, ular chetlab o'tilganda yo'llar soni qanday o'zgarishini ko'ring. Har bir tugundagi son — A dan shu tugungacha bo'lgan yo'llar soni.</p>
   </header>
 
   <div class="main">
@@ -118,12 +124,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
           <label class="check" for="size">Panjara <input id="size" type="range" min="3" max="16" value="6"> <span id="sizeVal" class="math">6</span></label>
         </div>
         <div class="row">
+          <span class="label">Harakat</span>
+          <div class="seg" role="group" aria-label="Harakat yo'nalishi">
+            <button data-dir="strict" aria-pressed="true">Faqat → va ↑</button>
+            <button data-dir="any" aria-pressed="false">B tomonga (←, ↓ ham)</button>
+          </div>
+        </div>
+        <div class="row">
           <span class="label">Bosish rejimi</span>
           <div class="seg" role="group" aria-label="Bosish rejimi">
             <button data-mode="A" aria-pressed="true">A nuqta</button>
             <button data-mode="B" aria-pressed="false">B nuqta</button>
             <button data-mode="P" aria-pressed="false">Orqali o'tadigan nuqta</button>
-            <button data-mode="X" aria-pressed="false">To'siq</button>
+            <button data-mode="X" aria-pressed="false">Kirish mumkin emas ✕</button>
           </div>
         </div>
       </div>
@@ -133,13 +146,22 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
           <span><i class="dot" style="background: var(--green)"></i>A — boshlanish</span>
           <span><i class="dot" style="background: var(--red)"></i>B — manzil / yo'l</span>
           <span><i class="dot" style="background: var(--amber)"></i>Orqali o'tadigan nuqta</span>
-          <span><i class="dot" style="background: var(--block)"></i>To'siq</span>
+          <span><i class="dot" style="background: var(--block)"></i>Kirish mumkin emas</span>
         </div>
         <div class="row">
           <label class="check" for="showNums"><input id="showNums" type="checkbox" checked> Sonlar</label>
           <label class="check" for="showHeat"><input id="showHeat" type="checkbox"> Issiqlik xaritasi</label>
           <button class="btn" id="clearBtn">Tozalash</button>
         </div>
+      </div>
+      <div class="forbid">
+        <div class="label">Kirish mumkin bo'lmagan nuqtalar</div>
+        <form class="row" id="forbidForm">
+          <div class="pt">✕(<input id="fx" type="number" min="0" value="2" aria-label="Taqiqlangan nuqta x">,<input id="fy" type="number" min="0" value="2" aria-label="Taqiqlangan nuqta y">)</div>
+          <button class="btn" type="submit">Qo'shish</button>
+          <span class="hint">yoki «Kirish mumkin emas ✕» rejimida panjarani bosing</span>
+        </form>
+        <div class="chips" id="chips"></div>
       </div>
     </section>
 
@@ -178,7 +200,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
   const cv = $("cv"), ctx = cv.getContext("2d"), box = $("canvasBox");
   const state = {
     N: 6, A: { x: 0, y: 0 }, B: { x: 4, y: 4 }, P: null, blocks: new Set(),
-    mode: "A", k: 0, anim: 1, playing: null,
+    mode: "A", strict: true, k: 0, anim: 1, playing: null,
   };
   let C = null; // computed data
 
@@ -201,12 +223,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
     const sx = B.x >= A.x ? 1 : -1, sy = B.y >= A.y ? 1 : -1;
     const n = Math.abs(B.x - A.x), m = Math.abs(B.y - A.y);
     const G = (i, j) => ({ x: A.x + sx * i, y: A.y + sy * j });
+    const unreachable = state.strict && (B.x < A.x || B.y < A.y);
     let pi = null, pj = null, pOutside = false;
     if (P) {
       pi = (P.x - A.x) * sx; pj = (P.y - A.y) * sy;
       if (pi < 0 || pj < 0 || pi > n || pj > m) pOutside = true;
     }
     const allowed = (i, j) => {
+      if (unreachable) return false;
       const g = G(i, j);
       if (state.blocks.has(key(g.x, g.y))) return false;
       if (P && !pOutside) return (i <= pi && j <= pj) || (i >= pi && j >= pj);
@@ -225,7 +249,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
       if (i === n && j === m) { g[i][j] = 1; continue; }
       g[i][j] = (i < n ? g[i + 1][j] : 0) + (j < m ? g[i][j + 1] : 0);
     }
-    C = { sx, sy, n, m, f, g, G, allowed, pi, pj, pOutside, total: f[n][m] };
+    C = { unreachable, sx, sy, n, m, f, g, G, allowed, pi, pj, pOutside, total: f[n][m] };
   }
 
   function unrank(k) {
@@ -388,8 +412,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
     const lines = [];
     lines.push(`<div class="math">A(${A.x}, ${A.y}) → B(${B.x}, ${B.y})</div>`);
     lines.push(`<div>${hx}: <b class="math">n = |${B.x} − ${A.x}| = ${n}</b> qadam, ${hy}: <b class="math">m = |${B.y} − ${A.y}| = ${m}</b> qadam. Jami <b class="math">n + m = ${n + m}</b> qadam.</div>`);
+    if (C.unreachable) {
+      lines.push(`<div class="note warn">B nuqta A dan ${B.x < A.x ? "chapda" : ""}${B.x < A.x && B.y < A.y ? " va " : ""}${B.y < A.y ? "pastda" : ""} joylashgan. Faqat o'ngga (→) va yuqoriga (↑) yurib unga yetib bo'lmaydi, shuning uchun yo'llar soni <b>0</b>. Chapga/pastga ham yurishga ruxsat berish uchun «B tomonga» rejimini tanlang.</div>`);
+      $("steps").innerHTML = lines.join("");
+      renderPascal(0, 0);
+      return;
+    }
     const plain = binom(n + m, n);
-    const hasBlocks = [...state.blocks].some((kk) => { const [x, y] = kk.split(",").map(Number); return inZone(x, y); });
+    const zoneBlocks = [...state.blocks].map((kk) => kk.split(",").map(Number)).filter(([x, y]) => inZone(x, y));
+    const hasBlocks = zoneBlocks.length > 0;
     lines.push(`<div>Har bir yo'l — ${n + m} ta qadamdan ${n} tasini "${sx > 0 ? "→" : "←"}" uchun tanlash:</div>`);
     let f = `<div class="math">${bin(n, n + m)} = <span>(n+m)! / (n!·m!)</span> = ${n + m}! / (${n}!·${m}!)`;
     if (n + m <= 18) f += ` = ${fmt(fact(n + m))} / (${fmt(fact(n))}·${fmt(fact(m))})`;
@@ -403,8 +434,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
         lines.push(`<div class="note">P(${P.x}, ${P.y}) orqali o'tuvchi yo'llar: (A → P) · (P → B) = ${bin(C.pi, C.pi + C.pj)} · ${bin(n - C.pi, n - C.pi + m - C.pj)} = ${fmt(a)} · ${fmt(b)} = <b>${fmt(a * b)}</b>${hasBlocks ? " (to'siqlarsiz)" : ""}</div>`);
       }
     }
-    if (hasBlocks) {
-      lines.push(`<div class="note warn">To'siqlar bor, shuning uchun formula ishlamaydi. Natija har bir tugunda «oldingi ikki qo'shni yig'indisi» qoidasi bilan hisoblandi: <b>${fmt(total)}</b>.</div>`);
+    if (zoneBlocks.length === 1 && !P) {
+      const [x, y] = zoneBlocks[0];
+      const xi = Math.abs(x - A.x), yj = Math.abs(y - A.y);
+      const a = binom(xi + yj, xi), b = binom(n - xi + m - yj, n - xi);
+      lines.push(`<div class="note">X(${x}, ${y}) nuqtaga kirish mumkin emas. Undan o'tadigan yo'llarni ayiramiz:<br><span class="math">${bin(n, n + m)} − ${bin(xi, xi + yj)} · ${bin(n - xi, n - xi + m - yj)} = ${fmt(plain)} − ${fmt(a)} · ${fmt(b)} = <b>${fmt(plain - a * b)}</b></span></div>`);
+    } else if (hasBlocks) {
+      lines.push(`<div class="note warn">Kirish mumkin bo'lmagan nuqtalar bor, shuning uchun bitta formula yetmaydi. Natija har bir tugunda «oldingi ikki qo'shni yig'indisi» qoidasi bilan hisoblandi: <b>${fmt(total)}</b>.</div>`);
     }
     if (!hasBlocks && !P) {
       lines.push(`<div class="hint">Har bir tugundagi son = chapdagi + pastdagi tugun soni. Shuning uchun panjaradagi diagonallar Paskal uchburchagi qatorlarini beradi.</div>`);
@@ -432,6 +468,13 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
     }
     $("pascal").innerHTML = `<div class="ptri">${rows.join("")}</div>`;
     $("pascalNote").innerHTML = `${R}-qatorning ${n}-o'rnidagi son ${bin(n, R)} = ${fmt(binom(R, n))} — to'siqsiz yo'llar soni. Qator yig'indisi 2<sup>${R}</sup> = ${fmt(2 ** R)} — ${R} qadamli barcha →/↑ ketma-ketliklar soni.`;
+  }
+
+  function renderChips() {
+    const list = [...state.blocks].map((kk) => kk.split(",").map(Number)).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    $("chips").innerHTML = list.length
+      ? list.map(([x, y]) => `<span class="chip${inZone(x, y) ? "" : " out"}" title="${inZone(x, y) ? "" : "A–B to'rtburchagidan tashqarida, natijaga ta'sir qilmaydi"}">✕(${x}, ${y})<button type="button" data-del="${x},${y}" aria-label="(${x}, ${y}) nuqtani olib tashlash">×</button></span>`).join("")
+      : `<span class="hint">Hozircha yo'q.</span>`;
   }
 
   function renderPath() {
@@ -473,12 +516,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
     state.A = { x: c(state.A.x), y: c(state.A.y) }; state.B = { x: c(state.B.x), y: c(state.B.y) };
     if (state.P && (state.P.x > N || state.P.y > N)) state.P = null;
     $("ax").value = state.A.x; $("ay").value = state.A.y; $("bx").value = state.B.x; $("by").value = state.B.y;
-    ["ax", "ay", "bx", "by"].forEach((id) => ($(id).max = N));
+    ["ax", "ay", "bx", "by", "fx", "fy"].forEach((id) => ($(id).max = N));
   }
   function update(resetPath = true) {
     stopPlay(); clampInputs(); compute();
     if (resetPath) state.k = 0;
-    renderInfo(); renderPath(); state.anim = 1; draw();
+    renderInfo(); renderChips(); renderPath(); state.anim = 1; draw();
   }
 
   // ---------- events ----------
@@ -487,10 +530,26 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
     update();
   }));
   $("size").addEventListener("input", (e) => { state.N = +e.target.value; $("sizeVal").textContent = state.N; update(); resize(); });
-  document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
     state.mode = b.dataset.mode;
-    document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    document.querySelectorAll("[data-mode]").forEach((x) => x.setAttribute("aria-pressed", x === b));
   }));
+  document.querySelectorAll("[data-dir]").forEach((b) => b.addEventListener("click", () => {
+    state.strict = b.dataset.dir === "strict";
+    document.querySelectorAll("[data-dir]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    update();
+  }));
+  $("forbidForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const x = Math.round(+$("fx").value), y = Math.round(+$("fy").value);
+    if (!(x >= 0 && y >= 0 && x <= state.N && y <= state.N)) return;
+    if ((x === state.A.x && y === state.A.y) || (x === state.B.x && y === state.B.y)) return;
+    state.blocks.add(key(x, y)); update();
+  });
+  $("chips").addEventListener("click", (e) => {
+    const d = e.target.closest("[data-del]"); if (!d) return;
+    state.blocks.delete(d.dataset.del); update();
+  });
   ["showNums", "showHeat"].forEach((id) => $(id).addEventListener("change", draw));
   $("clearBtn").addEventListener("click", () => { state.blocks.clear(); state.P = null; update(); });
 
@@ -500,8 +559,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
     const y = Math.round((geo.oy - (e.clientY - r.top)) / geo.cell);
     if (x < 0 || y < 0 || x > state.N || y > state.N) return;
     const isA = x === state.A.x && y === state.A.y, isB = x === state.B.x && y === state.B.y;
-    if (state.mode === "A") state.A = { x, y };
-    else if (state.mode === "B") state.B = { x, y };
+    if (state.mode === "A") { state.A = { x, y }; state.blocks.delete(key(x, y)); }
+    else if (state.mode === "B") { state.B = { x, y }; state.blocks.delete(key(x, y)); }
     else if (state.mode === "P") state.P = state.P && state.P.x === x && state.P.y === y ? null : { x, y };
     else if (state.mode === "X") {
       if (isA || isB) return;
